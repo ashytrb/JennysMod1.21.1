@@ -1,5 +1,6 @@
 package com.trolmastercard.sexmod.entity;
 
+import net.minecraft.resources.ResourceLocation;
 import software.bernie.geckolib.animation.RawAnimation;
 
 import java.util.ArrayList;
@@ -210,9 +211,17 @@ public enum CompanionScene {
             phase("animation.galath.corrupt_cum", 57)
     ),
 
+    /**
+     * The bed animations are authored for the combined Galath and Manglelie
+     * model, which is the only geometry that contains both skeletons. Played on
+     * Manglelie's own model the keyframes that exist there are static, so the
+     * scene looked frozen. The scene therefore renders with that combined model
+     * and Galath's animation file, where all four phases exist.
+     */
     MANGLELIE_BED(
             CompanionKind.MANGLELIE, "bed", true,
-            loop("animation.manglelie.bed_slow", 100),
+            phase("animation.shared.bed_back", 15),
+            loop("animation.shared.bed_slow", 100),
             loop("animation.shared.bed_fast", 60),
             phase("animation.shared.bed_cum", 78)
     );
@@ -252,6 +261,30 @@ public enum CompanionScene {
 
     public boolean hasPartner() {
         return this.hasPartner;
+    }
+
+    /**
+     * Kind whose texture, animation file and cosmetic bone rules this scene
+     * borrows, or {@code null} when the companion's own assets are used.
+     */
+    public CompanionKind renderAsKind() {
+        return this == MANGLELIE_BED ? CompanionKind.GALATH : null;
+    }
+
+    /** Model used instead of the companion's own one, or {@code null}. */
+    public ResourceLocation modelOverride() {
+        return this == MANGLELIE_BED
+                ? ResourceLocation.fromNamespaceAndPath("sexmod", "geo/galath/galath_con_mang.geo.json")
+                : null;
+    }
+
+    /**
+     * True when the pose is authored as already lying on the mattress, so the
+     * scene has to be anchored onto the bed. The doggy scenes instead open with
+     * their own "go on bed" animation and keep their own starting position.
+     */
+    public boolean anchorsOnBed() {
+        return this == MANGLELIE_BED;
     }
 
     public boolean requiresBed() {

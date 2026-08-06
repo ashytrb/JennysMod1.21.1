@@ -17,6 +17,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.InteractionHand;
@@ -30,6 +31,8 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -45,9 +48,16 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BedPart;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -112,6 +122,10 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
     private Vec3 scenePartnerReturnPosition;
     private float scenePartnerReturnYaw;
     private float scenePartnerReturnPitch;
+    private Vec3 sceneAnchorPosition;
+    private float sceneAnchorYaw;
+    private boolean scenePreviousNoAi;
+    private boolean scenePreviousNoGravity;
     private CompanionMode scenePreviousMode;
     private String lastAnimationKey = "";
     private int rangedAttackCooldown;
@@ -406,10 +420,27 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
             return false;
         }
 
+        SceneAnchor anchor = scene.anchorsOnBed()
+                ? this.bedSceneAnchor(serverLevel).orElse(null)
+                : null;
+        if (anchor == null) {
+            anchor = new SceneAnchor(
+                    this.findGroundedSceneAnchor(serverLevel),
+                    Mth.wrapDegrees(this.getYRot())
+            );
+        }
+
         this.getNavigation().stop();
         this.setTarget(null);
         this.scenePreviousMode = this.mode();
+        this.scenePreviousNoAi = this.isNoAi();
+        this.scenePreviousNoGravity = this.isNoGravity();
+        this.sceneAnchorPosition = anchor.position();
+        this.sceneAnchorYaw = anchor.yaw();
         this.setMode(CompanionMode.STAY);
+        this.setNoAi(true);
+        this.setNoGravity(true);
+        this.entityData.set(DATA_FLYING, false);
         this.scenePhaseTicks = 0;
         this.sceneControlCooldown = 0;
         this.sceneEnvironmentTicks = 0;
@@ -424,9 +455,92 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
             this.scenePartnerReturnPosition = null;
         }
 
+        this.lockSceneTransforms(player, scene.hasPartner(), true);
         this.enterScenePhase(0);
         this.playSound(SoundEvents.ENCHANTMENT_TABLE_USE, 0.45F, 1.35F);
         return true;
+    }
+
+    /**
+     * Flying companions can trigger a scene in mid air, which leaves the whole
+     * animation suspended. This snaps the scene origin onto the closest surface
+     * below when one exists, and otherwise keeps the current position so a scene
+     * is never silently refused.
+     */
+    private Vec3 findGroundedSceneAnchor(ServerLevel serverLevel) {
+        if (this.onGround()) {
+            return this.position();
+        }
+
+        Vec3 from = this.position().add(0.0D, Math.min(1.0D, this.getBbHeight() * 0.5D), 0.0D);
+        Vec3 to = new Vec3(
+                from.x,
+                Math.max(serverLevel.getMinBuildHeight(), from.y - 16.0D),
+                from.z
+        );
+        BlockHitResult hit = serverLevel.clip(new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                this
+        ));
+        if (hit.getType() == HitResult.Type.MISS) {
+            return this.position();
+        }
+
+        return new Vec3(this.getX(), hit.getLocation().y + 0.01D, this.getZ());
+    }
+
+    /**
+     * Keeps the companion pinned to the scene anchor and the partner inside the
+     * model, where the {@code steve} bone renders it. The partner's view angles
+     * are only initialised once, so the vanilla third person camera stays under
+     * player control for the rest of the scene.
+     */
+    private void lockSceneTransforms(Player partner, boolean positionPartner, boolean initial) {
+        if (this.sceneAnchorPosition == null) {
+            return;
+        }
+
+        this.setPos(
+                this.sceneAnchorPosition.x,
+                this.sceneAnchorPosition.y,
+                this.sceneAnchorPosition.z
+        );
+        this.xo = this.sceneAnchorPosition.x;
+        this.yo = this.sceneAnchorPosition.y;
+        this.zo = this.sceneAnchorPosition.z;
+        this.setYRot(this.sceneAnchorYaw);
+        this.yRotO = this.sceneAnchorYaw;
+        this.setXRot(0.0F);
+        this.xRotO = 0.0F;
+        this.yBodyRot = this.sceneAnchorYaw;
+        this.yBodyRotO = this.sceneAnchorYaw;
+        this.yHeadRot = this.sceneAnchorYaw;
+        this.yHeadRotO = this.sceneAnchorYaw;
+        this.setDeltaMovement(Vec3.ZERO);
+        this.fallDistance = 0.0F;
+
+        if (!positionPartner || partner == null) {
+            return;
+        }
+
+        if (partner.position().distanceToSqr(this.sceneAnchorPosition) > 1.0E-4D) {
+            partner.teleportTo(
+                    this.sceneAnchorPosition.x,
+                    this.sceneAnchorPosition.y,
+                    this.sceneAnchorPosition.z
+            );
+        }
+        partner.setDeltaMovement(Vec3.ZERO);
+        partner.fallDistance = 0.0F;
+
+        if (initial) {
+            // Start the orbit camera in front of the scene instead of behind it.
+            partner.setYRot(Mth.wrapDegrees(this.sceneAnchorYaw + 180.0F));
+            partner.setXRot(8.0F);
+        }
     }
 
     public boolean canControlScene(Player player) {
@@ -514,6 +628,11 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
     }
 
     @Override
+    public boolean isPushable() {
+        return !this.isInScene() && super.isPushable();
+    }
+
+    @Override
     public void tick() {
         super.tick();
 
@@ -577,6 +696,7 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
 
         this.getNavigation().stop();
         this.setDeltaMovement(Vec3.ZERO);
+        this.lockSceneTransforms(null, false, false);
 
         ServerPlayer controller = this.scenePartnerId()
                 .map(serverLevel.getServer().getPlayerList()::getPlayer)
@@ -604,10 +724,8 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
 
         if (scene.hasPartner()) {
             controller.stopRiding();
-            controller.setDeltaMovement(Vec3.ZERO);
-            controller.fallDistance = 0.0F;
-            controller.teleportTo(this.getX(), this.getY(), this.getZ());
         }
+        this.lockSceneTransforms(controller, scene.hasPartner(), false);
 
         CompanionScene.Phase phase = scene.phase(this.currentScenePhase());
         if (phase == null) {
@@ -643,44 +761,9 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
     }
 
     private void onScenePhaseEntered(CompanionScene scene, int phaseIndex) {
-        if (!(this.level() instanceof ServerLevel serverLevel)) {
+        if (!(this.level() instanceof ServerLevel)) {
             return;
         }
-
-        String phaseKey;
-        CompanionScene.PhaseRole role = scene.phaseRole(phaseIndex);
-        if (role == CompanionScene.PhaseRole.FINALE) {
-            phaseKey = "scene.phase.sexmod.finale";
-        } else if (role == CompanionScene.PhaseRole.INTENSITY) {
-            phaseKey = phaseIndex == scene.firstLoopPhase()
-                    ? "scene.phase.sexmod.slow"
-                    : "scene.phase.sexmod.fast";
-        } else {
-            phaseKey = "scene.phase.sexmod.intro";
-        }
-
-        String dialogueKey = switch (phaseKey) {
-            case "scene.phase.sexmod.slow" -> "dialogue.sexmod.scene.slow";
-            case "scene.phase.sexmod.fast" -> "dialogue.sexmod.scene.fast";
-            case "scene.phase.sexmod.finale" -> "dialogue.sexmod.scene.finale";
-            default -> "dialogue.sexmod.scene.intro";
-        };
-        this.scenePartnerId()
-                .map(serverLevel.getServer().getPlayerList()::getPlayer)
-                .ifPresent(player -> {
-                    player.displayClientMessage(
-                            Component.translatable(
-                                    "message.sexmod.scene_phase",
-                                    Component.translatable(scene.translationKey()),
-                                    Component.translatable(phaseKey)
-                            ),
-                            true
-                    );
-                    player.displayClientMessage(
-                            Component.translatable(dialogueKey, this.getDisplayName()),
-                            false
-                    );
-                });
 
         String cuePath = this.sceneCuePath();
         if (cuePath != null && ModSounds.find(cuePath).isPresent()) {
@@ -731,16 +814,66 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
     }
 
     private boolean hasNearbyBed(ServerLevel serverLevel) {
+        return this.findNearbyBed(serverLevel).isPresent();
+    }
+
+    private Optional<BlockPos> findNearbyBed(ServerLevel serverLevel) {
         BlockPos center = this.blockPosition();
+        BlockPos closest = null;
+        double closestDistance = Double.MAX_VALUE;
+
         for (BlockPos position : BlockPos.betweenClosed(
                 center.offset(-4, -2, -4),
                 center.offset(4, 2, 4)
         )) {
-            if (serverLevel.getBlockState(position).is(BlockTags.BEDS)) {
-                return true;
+            if (!serverLevel.getBlockState(position).is(BlockTags.BEDS)) {
+                continue;
+            }
+
+            double distance = position.distToCenterSqr(this.position());
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closest = position.immutable();
             }
         }
-        return false;
+
+        return Optional.ofNullable(closest);
+    }
+
+    /**
+     * Places the scene on the mattress of a nearby bed and aligns it with the
+     * bed axis. The bed poses are authored as if the characters were already
+     * lying on it, so without this the whole animation plays wherever the
+     * companion happened to stand and appears suspended in mid air.
+     */
+    private Optional<SceneAnchor> bedSceneAnchor(ServerLevel serverLevel) {
+        return this.findNearbyBed(serverLevel).map(bedPos -> {
+            BlockState state = serverLevel.getBlockState(bedPos);
+            double x = bedPos.getX() + 0.5D;
+            double z = bedPos.getZ() + 0.5D;
+            float yaw = this.getYRot();
+
+            if (state.getBlock() instanceof BedBlock
+                    && state.hasProperty(BedBlock.FACING)
+                    && state.hasProperty(BedBlock.PART)) {
+                Direction facing = state.getValue(BedBlock.FACING);
+                BlockPos other = state.getValue(BedBlock.PART) == BedPart.HEAD
+                        ? bedPos.relative(facing.getOpposite())
+                        : bedPos.relative(facing);
+
+                if (serverLevel.getBlockState(other).is(BlockTags.BEDS)) {
+                    x = (bedPos.getX() + other.getX()) / 2.0D + 0.5D;
+                    z = (bedPos.getZ() + other.getZ()) / 2.0D + 0.5D;
+                }
+
+                yaw = facing.toYRot();
+            }
+
+            return new SceneAnchor(new Vec3(x, bedPos.getY(), z), Mth.wrapDegrees(yaw));
+        });
+    }
+
+    private record SceneAnchor(Vec3 position, float yaw) {
     }
 
     private void finishScene(boolean completed) {
@@ -771,6 +904,9 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
                 } else {
                     this.grantDailySceneReward(controller);
                 }
+                if (scene.hasPartner()) {
+                    applyAfterglowEffects(controller);
+                }
                 controller.displayClientMessage(Component.translatable("message.sexmod.scene_completed"), true);
             } else if (!completed && controller != null) {
                 controller.displayClientMessage(Component.translatable("message.sexmod.scene_stopped"), true);
@@ -784,12 +920,31 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
         this.sceneControlCooldown = 0;
         this.sceneEnvironmentTicks = 0;
         this.scenePartnerReturnPosition = null;
+        this.sceneAnchorPosition = null;
         this.setDeltaMovement(Vec3.ZERO);
+        this.setNoAi(this.scenePreviousNoAi);
+        this.setNoGravity(this.scenePreviousNoGravity);
         if (this.scenePreviousMode != null) {
             CompanionMode previousMode = this.scenePreviousMode;
             this.scenePreviousMode = null;
             this.setMode(previousMode);
         }
+    }
+
+    /**
+     * Light-hearted exhaustion applied after a completed partner scene.
+     *
+     * <p>Levitation is deliberately short and is always paired with slow falling
+     * that outlasts it, so the joke cannot turn into fall damage and inventory
+     * loss in survival.</p>
+     */
+    private static void applyAfterglowEffects(ServerPlayer player) {
+        player.addEffect(new MobEffectInstance(MobEffects.HUNGER, 600, 0, false, true, true));
+        player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 400, 1, false, true, true));
+        player.addEffect(new MobEffectInstance(MobEffects.WEAKNESS, 400, 0, false, true, true));
+        player.addEffect(new MobEffectInstance(MobEffects.LEVITATION, 60, 0, false, true, true));
+        player.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 260, 0, false, true, true));
+        player.fallDistance = 0.0F;
     }
 
     private void grantAllieRichReward(ServerPlayer player, ServerLevel serverLevel) {
@@ -1230,7 +1385,7 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
 
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "main", 5, this::animationPredicate));
+        controllers.add(new AnimationController<>(this, "main", 0, this::animationPredicate));
     }
 
     private <T extends CompanionEntity> software.bernie.geckolib.animation.PlayState animationPredicate(
