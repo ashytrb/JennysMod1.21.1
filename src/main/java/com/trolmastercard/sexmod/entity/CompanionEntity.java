@@ -765,25 +765,53 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
             return;
         }
 
-        String cuePath = this.sceneCuePath();
+        String cuePath = this.sceneCuePath(scene, phaseIndex);
         if (cuePath != null && ModSounds.find(cuePath).isPresent()) {
-            this.playSound(ModSounds.find(cuePath).orElseThrow().get(), 0.55F, 0.98F + phaseIndex * 0.03F);
+            this.playSound(
+                    ModSounds.find(cuePath).orElseThrow().get(),
+                    0.68F,
+                    0.96F + this.getRandom().nextFloat() * 0.08F
+            );
         } else {
-            this.playSound(SoundEvents.AMETHYST_BLOCK_CHIME, 0.35F, 1.1F + phaseIndex * 0.04F);
+            this.playSound(SoundEvents.AMETHYST_BLOCK_CHIME, 0.25F, 1.05F + phaseIndex * 0.03F);
         }
     }
 
-    private String sceneCuePath() {
-        return switch (this.kind) {
-            case JENNY -> "girls.jenny.aftersessionmoan.aftersessionmoan0";
-            case ELLIE -> "girls.ellie.aftersessionmoan.aftersessionmoan0";
-            case BIA -> "girls.bia.breath.breath0";
-            case LUNA -> "girls.luna.giggle.giggle0";
-            case ALLIE -> "girls.allie.aftersessionmoan.aftersessionmoan0";
-            case KOBOLD -> "girls.kobold.bjmoan.bjmoan0";
-            case GALATH -> "girls.galath.breathing.breathing0";
-            default -> null;
-        };
+    /**
+     * Selects a real character voice clip for the current scene beat. The old
+     * JAR used different voice banks for introductions, looping interactions,
+     * and scene endings; using one after-session clip for every phase made the
+     * port sound repetitive even though all original OGGs were present.
+     */
+    private String sceneCuePath(CompanionScene scene, int phaseIndex) {
+        String character = "girls." + this.kind.name().toLowerCase(java.util.Locale.ROOT);
+        CompanionScene.Phase phase = scene.phase(phaseIndex);
+        String[] categories;
+        if (!scene.hasPartner()) {
+            categories = new String[]{"giggle", "hey", "huh", "happyoh"};
+        } else if (phaseIndex == scene.phases().size() - 1 && scene.hasInteractivePhases()) {
+            categories = new String[]{"aftersessionmoan", "orgasm", "moan"};
+        } else if (phase != null && phase.loop()) {
+            categories = scene.path().contains("blowjob") || scene.path().contains("deepthroat")
+                    ? new String[]{"bjmoan", "moan", "heavybreathing", "lightbreathing"}
+                    : new String[]{"heavybreathing", "moan", "lightbreathing", "breath"};
+        } else {
+            categories = new String[]{"hey", "huh", "giggle", "breath", "dialog"};
+        }
+
+        for (String category : categories) {
+            java.util.ArrayList<String> available = new java.util.ArrayList<>();
+            for (int index = 0; index < 32; index++) {
+                String candidate = character + "." + category + "." + category + index;
+                if (ModSounds.find(candidate).isPresent()) {
+                    available.add(candidate);
+                }
+            }
+            if (!available.isEmpty()) {
+                return available.get(this.getRandom().nextInt(available.size()));
+            }
+        }
+        return null;
     }
 
     private boolean isSceneEnvironmentValid(
