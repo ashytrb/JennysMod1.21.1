@@ -30,6 +30,7 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private Button mode;
     private Button home;
     private final List<Button> sceneButtons = new ArrayList<>();
+    private List<CompanionScene> availableScenes = List.of();
 
     public CompanionInventoryScreen(CompanionInventoryMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -52,6 +53,7 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         List<CompanionScene> scenes = companion == null
                 ? List.of()
                 : CompanionScene.forKind(companion.kind());
+        this.availableScenes = scenes;
         this.sceneButtons.clear();
         for (int index = 0; index < scenes.size(); index++) {
             CompanionScene scene = scenes.get(index);
@@ -142,7 +144,7 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         for (int index = 0; index < this.sceneButtons.size(); index++) {
             Button choice = this.sceneButtons.get(index);
             boolean selected = selectedScene != null
-                    && selectedScene.equals(CompanionScene.forKind(companion.kind()).get(index));
+                    && selectedScene.equals(this.availableScenes.get(index));
             choice.active = companion != null && !active && !selected;
         }
         this.slower.active = controllableLoop && scene.previousLoopPhase(phase) >= 0;
