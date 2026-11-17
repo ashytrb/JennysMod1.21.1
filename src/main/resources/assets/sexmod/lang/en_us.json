@@ -293,6 +293,7 @@
   "screen.sexmod.scene_slower": "Slow",
   "screen.sexmod.scene_faster": "Fast",
   "screen.sexmod.scene_finish": "Finish",
+  "screen.sexmod.interactions": "Choose an interaction",
   "screen.sexmod.scene_none": "No scene",
   "screen.sexmod.scene_idle": "Select a scene",
   "screen.sexmod.scene_phase": "Phase %1$s/%2$s",
