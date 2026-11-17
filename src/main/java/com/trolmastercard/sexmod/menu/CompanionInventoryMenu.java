@@ -32,6 +32,7 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
     public static final int BUTTON_SCALE = 8;
     public static final int BUTTON_MODE = 9;
     public static final int BUTTON_HOME = 10;
+    public static final int BUTTON_SCENE_SELECT_BASE = 100;
 
     private static final int COMPANION_SLOT_COUNT = 7;
     private static final int PLAYER_INVENTORY_START = COMPANION_SLOT_COUNT;
@@ -139,6 +140,13 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
         }
 
         List<CompanionScene> scenes = CompanionScene.forKind(companion.kind());
+        if (buttonId >= BUTTON_SCENE_SELECT_BASE
+                && buttonId < BUTTON_SCENE_SELECT_BASE + scenes.size()) {
+            if (!companion.isInScene()) {
+                this.selectedSceneIndex.set(buttonId - BUTTON_SCENE_SELECT_BASE);
+            }
+            return true;
+        }
         switch (buttonId) {
             case BUTTON_SCENE_PREVIOUS -> this.moveSceneSelection(-1, scenes.size());
             case BUTTON_SCENE_NEXT -> this.moveSceneSelection(1, scenes.size());
