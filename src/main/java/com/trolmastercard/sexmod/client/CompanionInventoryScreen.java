@@ -29,13 +29,15 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private Button scale;
     private Button mode;
     private Button home;
+    private Button goHome;
+    private Button setHome;
     private final List<Button> sceneButtons = new ArrayList<>();
     private List<CompanionScene> availableScenes = List.of();
 
     public CompanionInventoryScreen(CompanionInventoryMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 176;
-        this.imageHeight = 254;
+        this.imageHeight = 278;
         this.inventoryLabelX = 8;
         this.inventoryLabelY = 118;
     }
@@ -97,12 +99,20 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
                 CompanionInventoryMenu.BUTTON_SCALE
         ));
         this.mode = this.addRenderableWidget(this.button(
-                "editor.sexmod.movement", x + 4, y + 231, 82, 20,
-                CompanionInventoryMenu.BUTTON_MODE
+                "mode.sexmod.follow", x + 4, y + 231, 82, 20,
+                CompanionInventoryMenu.BUTTON_FOLLOW
         ));
         this.home = this.addRenderableWidget(this.button(
-                "editor.sexmod.home", x + 89, y + 231, 83, 20,
-                CompanionInventoryMenu.BUTTON_HOME
+                "mode.sexmod.stay", x + 89, y + 231, 83, 20,
+                CompanionInventoryMenu.BUTTON_STAY
+        ));
+        this.goHome = this.addRenderableWidget(this.button(
+                "mode.sexmod.home", x + 4, y + 254, 82, 20,
+                CompanionInventoryMenu.BUTTON_GO_HOME
+        ));
+        this.setHome = this.addRenderableWidget(this.button(
+                "editor.sexmod.set_home", x + 89, y + 254, 83, 20,
+                CompanionInventoryMenu.BUTTON_SET_HOME
         ));
         this.updateButtonState();
     }
@@ -155,6 +165,8 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         this.scale.active = !active;
         this.mode.active = !active;
         this.home.active = !active;
+        this.goHome.active = !active;
+        this.setHome.active = !active;
     }
 
     @Override
