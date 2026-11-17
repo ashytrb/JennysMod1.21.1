@@ -138,11 +138,12 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         this.toggleScene.setMessage(Component.translatable(
                 active ? "screen.sexmod.scene_stop" : "screen.sexmod.scene_start"
         ));
+        CompanionScene selectedScene = this.menu.selectedScene();
         for (int index = 0; index < this.sceneButtons.size(); index++) {
             Button choice = this.sceneButtons.get(index);
-            boolean selected = this.menu.selectedScene() != null
-                    && this.menu.selectedScene().equals(CompanionScene.forKind(companion.kind()).get(index));
-            choice.active = !active && !selected;
+            boolean selected = selectedScene != null
+                    && selectedScene.equals(CompanionScene.forKind(companion.kind()).get(index));
+            choice.active = companion != null && !active && !selected;
         }
         this.slower.active = controllableLoop && scene.previousLoopPhase(phase) >= 0;
         this.faster.active = controllableLoop && scene.nextLoopPhase(phase) >= 0;
