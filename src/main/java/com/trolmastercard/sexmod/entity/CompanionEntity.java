@@ -790,7 +790,7 @@ public final class CompanionEntity extends PathfinderMob implements GeoEntity {
         if (!scene.hasPartner()) {
             categories = new String[]{"giggle", "hey", "huh", "happyoh"};
         } else if (phaseIndex == scene.phases().size() - 1 && scene.hasInteractivePhases()) {
-            categories = new String[]{"aftersessionmoan", "orgasm", "moan"};
+            categories = new String[]{"aftersessionmoan", "orgasm", "moan", "bjmoan", "breath", "giggle"};
         } else if (phase != null && phase.loop()) {
             categories = scene.path().contains("blowjob") || scene.path().contains("deepthroat")
                     ? new String[]{"bjmoan", "moan", "heavybreathing", "lightbreathing"}
