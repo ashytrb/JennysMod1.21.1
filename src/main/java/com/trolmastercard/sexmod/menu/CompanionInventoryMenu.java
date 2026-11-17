@@ -76,12 +76,12 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
         };
         for (int slot = 0; slot < COMPANION_SLOT_COUNT; slot++) {
             if (slot >= equipmentSlots.length) {
-                this.addSlot(new Slot(equipment, slot, equipmentX[slot], 60));
+                this.addSlot(new Slot(equipment, slot, equipmentX[slot], 106));
                 continue;
             }
 
             EquipmentSlot equipmentSlot = equipmentSlots[slot];
-            this.addSlot(new Slot(equipment, slot, equipmentX[slot], 60) {
+            this.addSlot(new Slot(equipment, slot, equipmentX[slot], 106) {
                 @Override
                 public boolean mayPlace(ItemStack stack) {
                     return equipmentSlot == EquipmentSlot.MAINHAND
@@ -99,11 +99,11 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
 
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 9; column++) {
-                this.addSlot(new Slot(playerInventory, column + row * 9 + 9, 8 + column * 18, 84 + row * 18));
+                this.addSlot(new Slot(playerInventory, column + row * 9 + 9, 8 + column * 18, 130 + row * 18));
             }
         }
         for (int column = 0; column < 9; column++) {
-            this.addSlot(new Slot(playerInventory, column, 8 + column * 18, 142));
+            this.addSlot(new Slot(playerInventory, column, 8 + column * 18, 188));
         }
     }
 
