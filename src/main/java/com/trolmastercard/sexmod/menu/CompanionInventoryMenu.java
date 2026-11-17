@@ -32,6 +32,10 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
     public static final int BUTTON_SCALE = 8;
     public static final int BUTTON_MODE = 9;
     public static final int BUTTON_HOME = 10;
+    public static final int BUTTON_FOLLOW = 11;
+    public static final int BUTTON_STAY = 12;
+    public static final int BUTTON_GO_HOME = 13;
+    public static final int BUTTON_SET_HOME = 14;
     public static final int BUTTON_SCENE_SELECT_BASE = 100;
 
     private static final int COMPANION_SLOT_COUNT = 7;
@@ -173,6 +177,13 @@ public final class CompanionInventoryMenu extends AbstractContainerMenu {
                             : companion.appearanceScale() + 0.25F
             );
             case BUTTON_MODE -> companion.setMode(companion.mode().next());
+            case BUTTON_FOLLOW -> companion.setMode(CompanionMode.FOLLOW);
+            case BUTTON_STAY -> companion.setMode(CompanionMode.STAY);
+            case BUTTON_GO_HOME -> companion.setMode(CompanionMode.HOME);
+            case BUTTON_SET_HOME -> {
+                companion.setHome(companion.blockPosition());
+                player.displayClientMessage(Component.translatable("message.sexmod.home_set"), true);
+            }
             case BUTTON_HOME -> {
                 companion.setHome(companion.blockPosition());
                 companion.setMode(CompanionMode.HOME);
