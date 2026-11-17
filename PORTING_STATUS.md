@@ -32,6 +32,9 @@ replica of the Forge 1.12.2 JAR's behavior.
   endings advance automatically, loops accept slow/fast/finish controls with
   debounce and safety timeouts, and stop/disconnect/unload restores the player
   without persisting active sessions;
+
+- character-specific interaction choices are now shown directly in the companion panel, rather than requiring users to cycle through scenes with previous/next arrows; scene choices are still limited to the port's reconstructed catalogue and are not a complete recreation of every 1.12.2 action;
+- scene phase changes now choose among available original character voice clips (intro, loop, and ending categories) where that character has a sound bank; this is a phase cue system, not a 1:1 reconstruction of all original sound triggers;
 - a unified graphical panel opened with the wand or by sneak-interacting with
   an empty hand: scene selection/start/stop, phase state, pacing controls,
   validated outfits, variant, scale, AI mode, home, and equipment; every action

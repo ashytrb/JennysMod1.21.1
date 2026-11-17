@@ -11,6 +11,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class CompanionInventoryScreen extends AbstractContainerScreen<CompanionInventoryMenu> {
     private static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(
             FapCraft.MOD_ID,
@@ -26,13 +29,17 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
     private Button scale;
     private Button mode;
     private Button home;
+    private Button goHome;
+    private Button setHome;
+    private final List<Button> sceneButtons = new ArrayList<>();
+    private List<CompanionScene> availableScenes = List.of();
 
     public CompanionInventoryScreen(CompanionInventoryMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 176;
-        this.imageHeight = 218;
+        this.imageHeight = 278;
         this.inventoryLabelX = 8;
-        this.inventoryLabelY = 74;
+        this.inventoryLabelY = 118;
     }
 
     @Override
@@ -41,46 +48,71 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         int x = this.leftPos;
         int y = this.topPos;
 
-        this.addRenderableWidget(this.button("<", x + 4, y + 4, 20, 20,
-                CompanionInventoryMenu.BUTTON_SCENE_PREVIOUS));
-        this.addRenderableWidget(this.button(">", x + 152, y + 4, 20, 20,
-                CompanionInventoryMenu.BUTTON_SCENE_NEXT));
+        // The 1.12.2 interaction menu exposed each character's actions directly.
+        // Keep that discoverable layout while routing every choice through the
+        // server-validated scene selection in CompanionInventoryMenu.
+        CompanionEntity companion = this.menu.companion();
+        List<CompanionScene> scenes = companion == null
+                ? List.of()
+                : CompanionScene.forKind(companion.kind());
+        this.availableScenes = scenes;
+        this.sceneButtons.clear();
+        for (int index = 0; index < scenes.size(); index++) {
+            CompanionScene scene = scenes.get(index);
+            int sceneIndex = index;
+            int column = index % 2;
+            int row = index / 2;
+            Button choice = Button.builder(
+                    Component.translatable(scene.translationKey()),
+                    ignored -> this.sendButton(CompanionInventoryMenu.BUTTON_SCENE_SELECT_BASE + sceneIndex)
+            ).bounds(x + 4 + column * 86, y + 30 + row * 22, 82, 20).build();
+            this.sceneButtons.add(this.addRenderableWidget(choice));
+        }
+
         this.toggleScene = this.addRenderableWidget(this.button(
-                "screen.sexmod.scene_start", x + 4, y + 27, 41, 20,
+                "screen.sexmod.scene_start", x + 4, y + 76, 41, 20,
                 CompanionInventoryMenu.BUTTON_SCENE_TOGGLE
         ));
         this.slower = this.addRenderableWidget(this.button(
-                "screen.sexmod.scene_slower", x + 47, y + 27, 39, 20,
+                "screen.sexmod.scene_slower", x + 47, y + 76, 39, 20,
                 CompanionInventoryMenu.BUTTON_SCENE_SLOWER
         ));
         this.faster = this.addRenderableWidget(this.button(
-                "screen.sexmod.scene_faster", x + 88, y + 27, 39, 20,
+                "screen.sexmod.scene_faster", x + 88, y + 76, 39, 20,
                 CompanionInventoryMenu.BUTTON_SCENE_FASTER
         ));
         this.finish = this.addRenderableWidget(this.button(
-                "screen.sexmod.scene_finish", x + 129, y + 27, 43, 20,
+                "screen.sexmod.scene_finish", x + 129, y + 76, 43, 20,
                 CompanionInventoryMenu.BUTTON_SCENE_FINISH
         ));
 
         this.outfit = this.addRenderableWidget(this.button(
-                "editor.sexmod.outfit", x + 4, y + 169, 54, 20,
+                "editor.sexmod.outfit", x + 4, y + 208, 54, 20,
                 CompanionInventoryMenu.BUTTON_OUTFIT
         ));
         this.variant = this.addRenderableWidget(this.button(
-                "editor.sexmod.variant", x + 61, y + 169, 54, 20,
+                "editor.sexmod.variant", x + 61, y + 208, 54, 20,
                 CompanionInventoryMenu.BUTTON_VARIANT
         ));
         this.scale = this.addRenderableWidget(this.button(
-                "editor.sexmod.scale", x + 118, y + 169, 54, 20,
+                "editor.sexmod.scale", x + 118, y + 208, 54, 20,
                 CompanionInventoryMenu.BUTTON_SCALE
         ));
         this.mode = this.addRenderableWidget(this.button(
-                "editor.sexmod.movement", x + 4, y + 192, 82, 20,
-                CompanionInventoryMenu.BUTTON_MODE
+                "mode.sexmod.follow", x + 4, y + 231, 82, 20,
+                CompanionInventoryMenu.BUTTON_FOLLOW
         ));
         this.home = this.addRenderableWidget(this.button(
-                "editor.sexmod.home", x + 89, y + 192, 83, 20,
-                CompanionInventoryMenu.BUTTON_HOME
+                "mode.sexmod.stay", x + 89, y + 231, 83, 20,
+                CompanionInventoryMenu.BUTTON_STAY
+        ));
+        this.goHome = this.addRenderableWidget(this.button(
+                "mode.sexmod.home", x + 4, y + 254, 82, 20,
+                CompanionInventoryMenu.BUTTON_GO_HOME
+        ));
+        this.setHome = this.addRenderableWidget(this.button(
+                "editor.sexmod.set_home", x + 89, y + 254, 83, 20,
+                CompanionInventoryMenu.BUTTON_SET_HOME
         ));
         this.updateButtonState();
     }
@@ -118,6 +150,13 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         this.toggleScene.setMessage(Component.translatable(
                 active ? "screen.sexmod.scene_stop" : "screen.sexmod.scene_start"
         ));
+        CompanionScene selectedScene = this.menu.selectedScene();
+        for (int index = 0; index < this.sceneButtons.size(); index++) {
+            Button choice = this.sceneButtons.get(index);
+            boolean selected = selectedScene != null
+                    && selectedScene.equals(this.availableScenes.get(index));
+            choice.active = companion != null && !active && !selected;
+        }
         this.slower.active = controllableLoop && scene.previousLoopPhase(phase) >= 0;
         this.faster.active = controllableLoop && scene.nextLoopPhase(phase) >= 0;
         this.finish.active = controllableLoop;
@@ -126,6 +165,8 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
         this.scale.active = !active;
         this.mode.active = !active;
         this.home.active = !active;
+        this.goHome.active = !active;
+        this.setHome.active = !active;
     }
 
     @Override
@@ -143,9 +184,9 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
                 this.topPos + this.imageHeight,
                 0xE0101010
         );
-        graphics.blit(TEXTURE, this.leftPos, this.topPos + 52, 80, 142, this.imageWidth, 114);
-        graphics.fill(this.leftPos, this.topPos + 48, this.leftPos + this.imageWidth, this.topPos + 51, 0xFF705030);
-        graphics.fill(this.leftPos, this.topPos + 166, this.leftPos + this.imageWidth, this.topPos + 168, 0xFF705030);
+        graphics.blit(TEXTURE, this.leftPos, this.topPos + 100, 80, 142, this.imageWidth, 114);
+        graphics.fill(this.leftPos, this.topPos + 98, this.leftPos + this.imageWidth, this.topPos + 100, 0xFF705030);
+        graphics.fill(this.leftPos, this.topPos + 204, this.leftPos + this.imageWidth, this.topPos + 206, 0xFF705030);
     }
 
     @Override
@@ -158,6 +199,13 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
                 : Component.translatable(shownScene.translationKey());
         graphics.drawCenteredString(this.font, sceneName, this.imageWidth / 2, 10, 0xFFFFFF);
 
+        graphics.drawCenteredString(
+                this.font,
+                Component.translatable("screen.sexmod.interactions"),
+                this.imageWidth / 2,
+                21,
+                0xFFE0A0
+        );
         Component state = activeScene == null
                 ? Component.translatable("screen.sexmod.scene_idle")
                 : Component.translatable(
@@ -165,7 +213,7 @@ public final class CompanionInventoryScreen extends AbstractContainerScreen<Comp
                         companion.currentScenePhase() + 1,
                         activeScene.phases().size()
                 );
-        graphics.drawCenteredString(this.font, state, this.imageWidth / 2, 50, 0xFFE0A0);
+        graphics.drawCenteredString(this.font, state, this.imageWidth / 2, 96, 0xFFE0A0);
         graphics.drawString(
                 this.font,
                 this.playerInventoryTitle,
